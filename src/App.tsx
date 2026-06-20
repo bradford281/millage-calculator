@@ -308,22 +308,22 @@ function App() {
             </article>
 
             <article>
-              <h3>Current</h3>
-              <p className="metric-primary">
-                {toCurrency(calculations.current.monthly)} / month
-              </p>
-              <p className="metric-secondary">
-                {toCurrency(calculations.current.annual)} / year
-              </p>
-            </article>
-
-            <article>
               <h3>Proposed</h3>
               <p className="metric-primary">
                 {toCurrency(calculations.proposed.monthly)} / month
               </p>
               <p className="metric-secondary">
                 {toCurrency(calculations.proposed.annual)} / year
+              </p>
+            </article>
+
+            <article>
+              <h3>Current</h3>
+              <p className="metric-primary">
+                {toCurrency(calculations.current.monthly)} / month
+              </p>
+              <p className="metric-secondary">
+                {toCurrency(calculations.current.annual)} / year
               </p>
             </article>
           </div>
