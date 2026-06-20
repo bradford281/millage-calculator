@@ -2,6 +2,13 @@
 
 Simple React + TypeScript app for showing what a proposed library millage means for a resident using taxable value.
 
+## Production Site
+
+- Live URL: https://d1t4mo5gpo642l.cloudfront.net/
+
+## Screenshots
+![Hero and calculator view](docs/screenshots/home-hero.png)
+
 ## What it does
 
 - Lets users enter a property address and request parcel lookup.
