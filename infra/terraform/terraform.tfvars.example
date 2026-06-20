@@ -4,7 +4,7 @@ environment         = "prod"
 site_content_path   = "../../dist"
 
 # Optional custom domain setup
-# domain_names         = ["calculator.yourdomain.com"]
+# domain_names         = ["libraryrenewal.hpcan.org"]
 # acm_certificate_arn  = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 # create_route53_records = true
 # route53_zone_id      = "Z1234567890ABC"

@@ -123,6 +123,37 @@ Terraform outputs include:
 - `site_url`
 - `cloudfront_domain_name`
 
+### 5. Add an HPCAN Subdomain Without Disrupting Current URL
+
+This keeps the existing CloudFront URL active while adding a friendly custom subdomain.
+
+1. Request or import an ACM certificate in `us-east-1` for your target subdomain (for example `libraryrenewal.hpcan.org`).
+
+2. In `infra/terraform/terraform.tfvars`, set:
+
+```hcl
+domain_names            = ["libraryrenewal.hpcan.org"]
+acm_certificate_arn     = "arn:aws:acm:us-east-1:YOUR_ACCOUNT_ID:certificate/YOUR_CERT_ID"
+create_route53_records  = false
+route53_zone_id         = null
+```
+
+3. Validate the ACM certificate using the DNS CNAME records ACM provides.
+
+4. Deploy AWS changes:
+
+```bash
+npm run deploy:wait
+```
+
+5. At your DNS provider, create a CNAME for the subdomain that points to Terraform output `cloudfront_domain_name`.
+
+6. Verify both URLs:
+	- Custom subdomain URL
+	- Existing CloudFront URL (should still work)
+
+Note: even with external DNS, the certificate still needs to exist in your AWS account (ACM in `us-east-1`) because CloudFront uses ACM certificates from AWS.
+
 ### Notes
 
 - AWS credentials must be configured in your shell before running Terraform.
