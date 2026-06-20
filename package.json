@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:wait": "node scripts/deploy.mjs --wait-invalidation",
     "lint": "eslint .",
     "preview": "vite preview"
   },

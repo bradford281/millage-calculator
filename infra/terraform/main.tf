@@ -12,6 +12,10 @@ locals {
 
   site_files = fileset(var.site_content_path, "**")
 
+  site_content_hash = sha1(join(",", [
+    for file in sort(local.site_files) : "${file}:${filemd5("${var.site_content_path}/${file}")}"
+  ]))
+
   mime_types = {
     ".css"   = "text/css"
     ".gif"   = "image/gif"
@@ -154,6 +158,24 @@ resource "aws_s3_object" "site_assets" {
   source       = "${var.site_content_path}/${each.key}"
   etag         = filemd5("${var.site_content_path}/${each.key}")
   content_type = lookup(local.mime_types, regex("\\.[^.]+$", each.key), "application/octet-stream")
+  cache_control = each.key == "index.html" ? "no-cache, no-store, must-revalidate" : (
+    contains([
+      ".css",
+      ".gif",
+      ".ico",
+      ".jpeg",
+      ".jpg",
+      ".js",
+      ".map",
+      ".png",
+      ".svg",
+      ".webp",
+      ".woff",
+      ".woff2",
+    ], length(regexall("\\.[^.]+$", each.key)) > 0 ? element(regexall("\\.[^.]+$", each.key), 0) : "")
+    ? "public, max-age=31536000, immutable"
+    : "public, max-age=3600"
+  )
 
   tags = local.default_tags
 }

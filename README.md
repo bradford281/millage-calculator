@@ -68,6 +68,18 @@ terraform plan
 terraform apply
 ```
 
+Or run the full build + apply + CloudFront invalidation flow from project root:
+
+```bash
+npm run deploy
+```
+
+To wait until CloudFront invalidation is fully completed before exit:
+
+```bash
+npm run deploy:wait
+```
+
 ### 4. Get the URL
 
 Terraform outputs include:
@@ -80,3 +92,5 @@ Terraform outputs include:
 - AWS credentials must be configured in your shell before running Terraform.
 - The default `site_content_path` is `../../dist` (Vite build output).
 - When you rebuild the app, rerun `terraform apply` to upload changed assets.
+- `npm run deploy` automatically builds, applies Terraform, and invalidates CloudFront.
+- `npm run deploy:wait` does the same and waits for invalidation status `Completed`.
