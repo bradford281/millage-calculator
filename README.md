@@ -20,9 +20,38 @@ npm install
 
 ```bash
 VITE_OAKLAND_PARCEL_API_URL=https://gisservices.oakgov.com/arcgis/rest/services/Enterprise/EnterpriseOpenParcelDataMapService/MapServer/1
+VITE_GOOGLE_GEOCODING_API_KEY=your_google_api_key_here
+VITE_GOOGLE_GEOCODING_REGION=us
 ```
 
 The app queries this ArcGIS layer by `SITEADDRESS` and reads `TAXABLEVALUE` (fallback `ASSESSEDVALUE`).
+If `VITE_GOOGLE_GEOCODING_API_KEY` is set, it first normalizes the entered address through Google Geocoding and attempts a point-based parcel lookup before text fallback.
+
+### Optional: Set Up Google Geocoding API Key
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/) and create/select a project.
+2. Enable billing for the project (required by Google Maps Platform).
+3. Enable the Geocoding API:
+	- APIs & Services -> Library -> Geocoding API -> Enable
+4. Create an API key:
+	- APIs & Services -> Credentials -> Create credentials -> API key
+5. Restrict the key (recommended):
+	- Application restrictions: `HTTP referrers (web sites)`
+	- Add allowed origins, for example:
+	  - `http://localhost:5173/*`
+	  - `https://d1t4mo5gpo642l.cloudfront.net/*`
+	  - your custom domain if used
+	- API restrictions: `Restrict key` -> `Geocoding API`
+6. Add the key to your `.env`:
+
+```bash
+VITE_GOOGLE_GEOCODING_API_KEY=your_google_api_key_here
+VITE_GOOGLE_GEOCODING_REGION=us
+```
+
+7. Restart the dev server after updating `.env`.
+
+Security note: Vite `VITE_` variables are bundled client-side, so keep key restrictions enabled.
 
 3. Start development server:
 

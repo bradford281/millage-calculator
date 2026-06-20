@@ -1,7 +1,14 @@
-import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+} from 'react'
 import './App.css'
-import { lookupTaxableValueByAddress } from './services/oaklandParcel'
+import {
+  lookupTaxableValueByAddress,
+  suggestPropertyAddresses,
+} from './services/oaklandParcel'
 
 type TaxBreakdown = {
   annual: number
@@ -10,6 +17,11 @@ type TaxBreakdown = {
 
 const DEFAULT_CURRENT_MILLAGE = 2.0991
 const DEFAULT_PROPOSED_MILLAGE = 2.5
+const DEFAULT_INCREMENTAL_MILLAGE =
+  DEFAULT_PROPOSED_MILLAGE - DEFAULT_CURRENT_MILLAGE
+const ANNUAL_COST_PER_100K = 100000 * (DEFAULT_INCREMENTAL_MILLAGE / 1000)
+const PUBLIC_NOTICE_URL =
+  'https://www.hazelpark.org/2026-05-05%20PUBLIC%20NOTICE%20-%20Copy.jpg?t=202605051454560'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -53,6 +65,8 @@ function App() {
   const [parcelId, setParcelId] = useState('')
   const [lookupError, setLookupError] = useState('')
   const [isLookingUp, setIsLookingUp] = useState(false)
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([])
+  const [isSuggestingAddress, setIsSuggestingAddress] = useState(false)
 
   const taxableValue = parsePositiveNumber(taxableValueInput)
   const currentMillage = parsePositiveNumber(currentMillageInput)
@@ -77,9 +91,50 @@ function App() {
     return { current, proposed, difference }
   }, [taxableValue, currentMillage, proposedMillage])
 
-  async function handleLookup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const handleAddressChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextAddress = event.target.value
+    setAddress(nextAddress)
 
+    if (nextAddress.trim().length < 3) {
+      setAddressSuggestions([])
+      setIsSuggestingAddress(false)
+    }
+  }
+
+  useEffect(() => {
+    const searchText = address.trim()
+
+    if (searchText.length < 3) {
+      return
+    }
+
+    let cancelled = false
+    const timeout = globalThis.setTimeout(async () => {
+      setIsSuggestingAddress(true)
+
+      try {
+        const suggestions = await suggestPropertyAddresses(searchText)
+        if (!cancelled) {
+          setAddressSuggestions(suggestions)
+        }
+      } catch {
+        if (!cancelled) {
+          setAddressSuggestions([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSuggestingAddress(false)
+        }
+      }
+    }, 250)
+
+    return () => {
+      cancelled = true
+      globalThis.clearTimeout(timeout)
+    }
+  }, [address])
+
+  const handleLookup = async () => {
     if (!address.trim()) {
       setLookupError('Enter a property address to look up taxable value.')
       return
@@ -117,7 +172,13 @@ function App() {
       </header>
 
       <section className="panel">
-        <form className="lookup-form" onSubmit={handleLookup}>
+        <form
+          className="lookup-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleLookup()
+          }}
+        >
           <label htmlFor="address">Property Address</label>
           <div className="lookup-row">
             <input
@@ -125,13 +186,22 @@ function App() {
               name="address"
               type="text"
               placeholder="e.g. 123 E Nine Mile Rd, Hazel Park, MI"
+              list="address-suggestions"
               value={address}
-              onChange={(event) => setAddress(event.target.value)}
+              onChange={handleAddressChange}
             />
+            <datalist id="address-suggestions">
+              {addressSuggestions.map((suggestion) => (
+                <option key={suggestion} value={suggestion} />
+              ))}
+            </datalist>
             <button type="submit" disabled={isLookingUp}>
               {isLookingUp ? 'Looking up...' : 'Look Up Taxable Value'}
             </button>
           </div>
+          {isSuggestingAddress ? (
+            <p className="meta">Finding address suggestions...</p>
+          ) : null}
         </form>
 
         {lookupError ? <p className="error">{lookupError}</p> : null}
@@ -150,7 +220,7 @@ function App() {
 
         <div className="input-grid">
           <label htmlFor="taxable-value">
-            Taxable Value ($)
+            <span>Taxable Value ($)</span>
             <input
               id="taxable-value"
               type="number"
@@ -163,7 +233,7 @@ function App() {
           </label>
 
           <label htmlFor="current-millage">
-            Current Library Millage
+            <span>Current Library Millage</span>
             <input
               id="current-millage"
               type="number"
@@ -175,7 +245,7 @@ function App() {
           </label>
 
           <label htmlFor="proposed-millage">
-            Proposed Library Millage
+            <span>Proposed Library Millage</span>
             <input
               id="proposed-millage"
               type="number"
@@ -230,6 +300,119 @@ function App() {
 
         <p className="small-note">
           If parcel lookup is unavailable, enter taxable value manually.
+        </p>
+      </section>
+
+      <section className="panel proposal-details">
+        <h2>About The Proposal</h2>
+
+        <div className="proposal-grid">
+          <article>
+            <h3>Proposal Snapshot</h3>
+            <p>
+              Current rate: <strong>{DEFAULT_CURRENT_MILLAGE.toFixed(4)} mills</strong>
+            </p>
+            <p>
+              Proposed total: <strong>{DEFAULT_PROPOSED_MILLAGE.toFixed(1)} mills</strong>
+            </p>
+            <p>
+              Net change: <strong>{DEFAULT_INCREMENTAL_MILLAGE.toFixed(4)} mills</strong>
+            </p>
+          </article>
+
+          <article className="proposal-highlight">
+            <h3>Estimated Cost Impact</h3>
+            <p>
+              About <strong>{toCurrency(ANNUAL_COST_PER_100K)}</strong> per year for
+              every <strong>$100,000</strong> of taxable value.
+            </p>
+            <p>
+              Formula used here: Annual tax = Taxable value x (millage / 1000).
+            </p>
+          </article>
+
+          <article>
+            <h3>Potential Improvements</h3>
+            <ul className="proposal-list">
+              <li>Expanded hours and more reliable weekly access.</li>
+              <li>Program growth for children, teens, and seniors.</li>
+              <li>More digital resources, technology, and public computers.</li>
+              <li>Facility and collection maintenance over time.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div className="proposal-links">
+          <h3>Public Notice</h3>
+          <p>Click the image below to open the official public notice.</p>
+          <a
+            className="public-notice-link"
+            href={PUBLIC_NOTICE_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <img
+              src={PUBLIC_NOTICE_URL}
+              alt="Hazel Park Public Notice"
+              loading="lazy"
+            />
+          </a>          
+          <h3>Open Meetings And Public Information</h3>
+          <p>
+            Check these official pages for district library details, proposal
+            references, and meeting information:
+          </p>
+          <ul className="proposal-list">
+            <li>
+              <a
+                href="https://hazel-park.lib.mi.us/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Hazel Park District Library Page
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://www.hazelpark.org/visitors/meeting_information.php"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Public Meeting Information (Open Meetings)
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://www.hazelpark.org/visitors/boards_and_commisions.php"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Boards And Commissions (Includes Library-Related Bodies)
+              </a>
+            </li>
+          </ul>
+
+          <h3>Watch Meeting Recordings</h3>
+          <p>
+            You can browse all posted meetings and city recordings on the
+            official channel:
+          </p>
+          <ul className="proposal-list">
+            <li>
+              <a
+                href="https://www.youtube.com/@cityofhazelparkcityhall7787/videos"
+                target="_blank"
+                rel="noreferrer"
+              >
+                City of Hazel Park City Hall YouTube Channel
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <p className="small-note">
+          Meeting schedules and agenda links can change frequently, so verify the
+          latest updates directly on official pages before attending.
         </p>
       </section>
     </main>

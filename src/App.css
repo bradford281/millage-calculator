@@ -46,6 +46,87 @@
   backdrop-filter: blur(8px);
 }
 
+.panel h2 {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+}
+
+.proposal-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.proposal-grid article {
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 14px;
+  background: #fff;
+}
+
+.proposal-grid h3 {
+  margin: 0 0 8px;
+  color: var(--ink-950);
+}
+
+.proposal-grid p {
+  margin: 0;
+  color: var(--ink-900);
+  line-height: 1.35;
+}
+
+.proposal-grid p + p {
+  margin-top: 8px;
+}
+
+.proposal-highlight {
+  background: linear-gradient(180deg, rgba(255, 213, 74, 0.2), rgba(255, 255, 255, 0.95));
+}
+
+.proposal-details {
+  margin-top: 4px;
+}
+
+.proposal-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-900);
+}
+
+.proposal-list li + li {
+  margin-top: 6px;
+}
+
+.proposal-links {
+  margin-top: 14px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.proposal-links h3 {
+  margin: 0;
+  color: var(--ink-950);
+}
+
+.proposal-links p {
+  margin: 10px 0;
+  color: var(--ink-800);
+}
+
+.proposal-links a {
+  color: #0f766e;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.proposal-links a:hover {
+  color: #0b5c55;
+}
+
 .lookup-form {
   display: grid;
   gap: 10px;
@@ -107,7 +188,12 @@ button:disabled {
   margin-top: 14px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 16px;
+}
+
+.input-grid label {
+  align-content: start;
 }
 
 .result-grid {
@@ -170,6 +256,7 @@ button:disabled {
 
 @media (max-width: 860px) {
   .lookup-row,
+  .proposal-grid,
   .input-grid,
   .result-grid {
     grid-template-columns: 1fr;

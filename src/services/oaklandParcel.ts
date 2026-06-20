@@ -5,8 +5,15 @@ export type ParcelLookupResult = {
 }
 
 const API_URL = import.meta.env.VITE_OAKLAND_PARCEL_API_URL as string | undefined
+const GOOGLE_GEOCODING_API_KEY = import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY as
+  | string
+  | undefined
+const GOOGLE_GEOCODING_REGION = (import.meta.env.VITE_GOOGLE_GEOCODING_REGION as
+  | string
+  | undefined) ?? 'us'
 
 type LooseObject = Record<string, unknown>
+type GeoPoint = { lat: number; lng: number }
 
 type ArcGisCandidate = {
   address?: string
@@ -14,6 +21,11 @@ type ArcGisCandidate = {
     x?: number
     y?: number
   }
+}
+
+type GoogleGeocodeResolution = {
+  formattedAddress?: string
+  location?: GeoPoint
 }
 
 function getFirstRecord(payload: unknown): LooseObject | null {
@@ -97,6 +109,50 @@ function normalizeText(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+const tokenVariants: Record<string, string[]> = {
+  N: ['N', 'NORTH'],
+  S: ['S', 'SOUTH'],
+  E: ['E', 'EAST'],
+  W: ['W', 'WEST'],
+  ST: ['ST', 'STREET'],
+  RD: ['RD', 'ROAD'],
+  AVE: ['AVE', 'AVENUE'],
+  BLVD: ['BLVD', 'BOULEVARD'],
+  DR: ['DR', 'DRIVE'],
+  CT: ['CT', 'COURT'],
+  LN: ['LN', 'LANE'],
+  CIR: ['CIR', 'CIRCLE'],
+  PKWY: ['PKWY', 'PARKWAY'],
+  HWY: ['HWY', 'HIGHWAY'],
+}
+
+function escapeSqlLike(value: string): string {
+  return value.replaceAll("'", "''")
+}
+
+function getTokenAlternates(token: string): string[] {
+  const direct = tokenVariants[token]
+  if (direct) {
+    return direct
+  }
+
+  const mapped = Object.entries(tokenVariants).find(([, variants]) => variants.includes(token))
+  if (mapped) {
+    return mapped[1]
+  }
+
+  return [token]
+}
+
+function buildTokenClause(field: string, token: string): string {
+  const variants = [...new Set(getTokenAlternates(token).map(escapeSqlLike))]
+  if (variants.length === 1) {
+    return `UPPER(${field}) LIKE '%${variants[0]}%'`
+  }
+
+  return `(${variants.map((variant) => `UPPER(${field}) LIKE '%${variant}%'`).join(' OR ')})`
+}
+
 function splitAddress(address: string): {
   houseNumber: string | null
   streetTokens: string[]
@@ -163,28 +219,180 @@ function getRecords(payload: unknown): LooseObject[] {
   return first ? [first] : []
 }
 
-function buildWhereClause(address: string): string {
+function buildWhereClauses(address: string): string[] {
   const parts = splitAddress(address)
-  const clauses: string[] = []
+  const cityClause = parts.cityToken
+    ? buildTokenClause('SITECITY', escapeSqlLike(parts.cityToken))
+    : null
 
-  if (parts.houseNumber) {
-    clauses.push(`UPPER(SITEADDRESS) LIKE '%${parts.houseNumber}%'`)
+  const houseClause = parts.houseNumber
+    ? `UPPER(SITEADDRESS) LIKE '%${escapeSqlLike(parts.houseNumber)}%'`
+    : null
+
+  const streetClauses = parts.streetTokens.slice(0, 4).map((token) => buildTokenClause('SITEADDRESS', token))
+
+  const strictClauses = [houseClause, ...streetClauses, cityClause].filter(
+    (value): value is string => Boolean(value),
+  )
+  const mediumClauses = [houseClause, ...streetClauses.slice(0, 2), cityClause].filter(
+    (value): value is string => Boolean(value),
+  )
+  const looseStreetClause = streetClauses.length > 0 ? `(${streetClauses.join(' OR ')})` : null
+  const looseClauses = [houseClause, looseStreetClause].filter(
+    (value): value is string => Boolean(value),
+  )
+
+  const fallback = normalizeText(address)
+  const fallbackClause = fallback
+    ? `UPPER(SITEADDRESS) LIKE '%${escapeSqlLike(fallback)}%'`
+    : null
+
+  const queries = [
+    strictClauses.length > 0 ? strictClauses.join(' AND ') : null,
+    mediumClauses.length > 0 ? mediumClauses.join(' AND ') : null,
+    looseClauses.length > 0 ? looseClauses.join(' AND ') : null,
+    fallbackClause,
+  ].filter((value): value is string => Boolean(value))
+
+  return [...new Set(queries)]
+}
+
+function buildSuggestionWhereClause(addressInput: string): string {
+  const normalized = normalizeText(addressInput)
+  const tokens = normalized.split(' ').filter((token) => token.length > 1).slice(0, 5)
+
+  if (tokens.length === 0) {
+    return '1=0'
   }
 
-  for (const token of parts.streetTokens.slice(0, 4)) {
-    clauses.push(`UPPER(SITEADDRESS) LIKE '%${token}%'`)
+  return tokens
+    .map((token) => `UPPER(SITEADDRESS) LIKE '%${escapeSqlLike(token)}%'`)
+    .join(' AND ')
+}
+
+function dedupeAddressList(addresses: string[]): string[] {
+  const seen = new Set<string>()
+  const output: string[] = []
+
+  for (const address of addresses) {
+    const normalized = normalizeText(address)
+    if (!normalized || seen.has(normalized)) {
+      continue
+    }
+
+    seen.add(normalized)
+    output.push(address)
   }
 
-  if (parts.cityToken) {
-    clauses.push(`UPPER(SITECITY) LIKE '%${parts.cityToken}%'`)
-  }
+  return output
+}
 
-  if (clauses.length === 0) {
-    const fallback = normalizeText(address)
-    return `UPPER(SITEADDRESS) LIKE '%${fallback}%'`
-  }
+async function queryArcGisLayer(endpointUrl: string, whereClause: string): Promise<LooseObject[]> {
+  const queryUrl = new URL(endpointUrl.endsWith('/query') ? endpointUrl : `${endpointUrl}/query`)
 
-  return clauses.join(' AND ')
+  queryUrl.searchParams.set('f', 'pjson')
+  queryUrl.searchParams.set('where', whereClause)
+  queryUrl.searchParams.set(
+    'outFields',
+    'KEYPIN,PIN,SITEADDRESS,SITECITY,TAXABLEVALUE,ASSESSEDVALUE',
+  )
+  queryUrl.searchParams.set('returnGeometry', 'false')
+  queryUrl.searchParams.set('resultRecordCount', '25')
+
+  const payload = await fetchJson(queryUrl)
+  return getRecords(payload)
+}
+
+async function suggestFromArcGisServicesRoot(
+  servicesRoot: string,
+  addressInput: string,
+): Promise<string[]> {
+  const geocodeUrl = toUrl(
+    servicesRoot,
+    'Locators/Oakland_Addresses/GeocodeServer/findAddressCandidates',
+  )
+  geocodeUrl.searchParams.set('f', 'pjson')
+  geocodeUrl.searchParams.set('SingleLine', addressInput)
+  geocodeUrl.searchParams.set('maxLocations', '8')
+
+  const payload = (await fetchJson(geocodeUrl)) as LooseObject
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : []
+
+  const suggestions = candidates
+    .map((candidate) => {
+      if (!candidate || typeof candidate !== 'object') {
+        return null
+      }
+
+      const maybeCandidate = candidate as LooseObject
+      return typeof maybeCandidate.address === 'string' ? maybeCandidate.address : null
+    })
+    .filter((address): address is string => Boolean(address))
+
+  return dedupeAddressList(suggestions).slice(0, 8)
+}
+
+async function suggestFromArcGisLayerEndpoint(
+  endpointUrl: string,
+  addressInput: string,
+): Promise<string[]> {
+  const queryUrl = new URL(endpointUrl.endsWith('/query') ? endpointUrl : `${endpointUrl}/query`)
+
+  queryUrl.searchParams.set('f', 'pjson')
+  queryUrl.searchParams.set('where', buildSuggestionWhereClause(addressInput))
+  queryUrl.searchParams.set('outFields', 'SITEADDRESS,SITECITY')
+  queryUrl.searchParams.set('returnGeometry', 'false')
+  queryUrl.searchParams.set('resultRecordCount', '12')
+
+  const payload = await fetchJson(queryUrl)
+  const records = getRecords(payload)
+
+  const suggestions = records
+    .map((record) => {
+      const siteAddress = typeof record.SITEADDRESS === 'string' ? record.SITEADDRESS.trim() : ''
+      const siteCity = typeof record.SITECITY === 'string' ? record.SITECITY.trim() : ''
+
+      if (!siteAddress) {
+        return null
+      }
+
+      return siteCity ? `${siteAddress}, ${siteCity}` : siteAddress
+    })
+    .filter((address): address is string => Boolean(address))
+
+  return dedupeAddressList(suggestions).slice(0, 8)
+}
+
+async function queryArcGisLayerByPoint(endpointUrl: string, point: GeoPoint): Promise<LooseObject[]> {
+  const queryUrl = new URL(endpointUrl.endsWith('/query') ? endpointUrl : `${endpointUrl}/query`)
+
+  queryUrl.searchParams.set('f', 'pjson')
+  queryUrl.searchParams.set('geometryType', 'esriGeometryPoint')
+  queryUrl.searchParams.set('spatialRel', 'esriSpatialRelIntersects')
+  queryUrl.searchParams.set('inSR', '4326')
+  queryUrl.searchParams.set('outSR', '4326')
+  queryUrl.searchParams.set('returnGeometry', 'false')
+  queryUrl.searchParams.set(
+    'outFields',
+    'KEYPIN,PIN,SITEADDRESS,SITECITY,TAXABLEVALUE,ASSESSEDVALUE',
+  )
+  queryUrl.searchParams.set('resultRecordCount', '25')
+  queryUrl.searchParams.set(
+    'geometry',
+    JSON.stringify({
+      x: point.lng,
+      y: point.lat,
+      spatialReference: { wkid: 4326 },
+    }),
+  )
+
+  const payload = await fetchJson(queryUrl)
+  return getRecords(payload)
+}
+
+function scoreTokenMatch(siteAddress: string, token: string): number {
+  const alternates = getTokenAlternates(token)
+  return alternates.some((candidate) => siteAddress.includes(candidate)) ? 10 : -6
 }
 
 function scoreRecord(record: LooseObject, address: string): number {
@@ -195,16 +403,16 @@ function scoreRecord(record: LooseObject, address: string): number {
 
   let score = 0
 
-  if (parts.houseNumber && siteAddress.includes(parts.houseNumber)) {
-    score += 40
+  if (parts.houseNumber) {
+    score += siteAddress.includes(parts.houseNumber) ? 45 : -25
   }
 
   for (const token of parts.streetTokens) {
-    score += siteAddress.includes(token) ? 10 : -8
+    score += scoreTokenMatch(siteAddress, token)
   }
 
   if (parts.cityToken) {
-    score += siteCity.includes(parts.cityToken) ? 12 : -6
+    score += siteCity.includes(parts.cityToken) ? 12 : -4
   }
 
   if (parts.normalizedInput && full.includes(parts.normalizedInput)) {
@@ -220,6 +428,54 @@ async function fetchJson(url: URL): Promise<unknown> {
     throw new Error('Parcel lookup request failed. Please check the API endpoint.')
   }
   return response.json() as Promise<unknown>
+}
+
+async function resolveAddressWithGoogle(address: string): Promise<GoogleGeocodeResolution | null> {
+  if (!GOOGLE_GEOCODING_API_KEY) {
+    return null
+  }
+
+  const geocodeUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json')
+  geocodeUrl.searchParams.set('address', address)
+  geocodeUrl.searchParams.set('components', 'country:US|administrative_area:MI')
+  geocodeUrl.searchParams.set('region', GOOGLE_GEOCODING_REGION)
+  geocodeUrl.searchParams.set('key', GOOGLE_GEOCODING_API_KEY)
+
+  try {
+    const payload = (await fetchJson(geocodeUrl)) as LooseObject
+    if (payload.status !== 'OK' || !Array.isArray(payload.results) || payload.results.length === 0) {
+      return null
+    }
+
+    const topResult = payload.results[0] as LooseObject
+    const formattedAddress =
+      typeof topResult.formatted_address === 'string' ? topResult.formatted_address : undefined
+
+    const geometryObject =
+      topResult.geometry && typeof topResult.geometry === 'object'
+        ? (topResult.geometry as LooseObject)
+        : null
+    const locationObject =
+      geometryObject?.location && typeof geometryObject.location === 'object'
+        ? (geometryObject.location as LooseObject)
+        : null
+
+    const lat = locationObject ? parseNumber(locationObject.lat) : null
+    const lng = locationObject ? parseNumber(locationObject.lng) : null
+
+    return {
+      formattedAddress,
+      location:
+        lat !== null && lng !== null
+          ? {
+              lat,
+              lng,
+            }
+          : undefined,
+    }
+  } catch {
+    return null
+  }
 }
 
 async function lookupFromArcGisServicesRoot(
@@ -364,21 +620,35 @@ async function lookupFromArcGisLayerEndpoint(
   endpointUrl: string,
   address: string,
 ): Promise<ParcelLookupResult> {
-  const queryUrl = new URL(endpointUrl.endsWith('/query') ? endpointUrl : `${endpointUrl}/query`)
+  const googleResolution = await resolveAddressWithGoogle(address)
+  const preferredAddress = googleResolution?.formattedAddress ?? address
+  const searchAddresses = preferredAddress === address ? [address] : [preferredAddress, address]
 
-  queryUrl.searchParams.set('f', 'pjson')
-  queryUrl.searchParams.set('where', buildWhereClause(address))
-  queryUrl.searchParams.set(
-    'outFields',
-    'KEYPIN,PIN,SITEADDRESS,SITECITY,TAXABLEVALUE,ASSESSEDVALUE',
-  )
-  queryUrl.searchParams.set('returnGeometry', 'false')
-  queryUrl.searchParams.set('resultRecordCount', '15')
+  let records: LooseObject[] = []
 
-  const payload = await fetchJson(queryUrl)
-  const records = getRecords(payload)
+  if (googleResolution?.location) {
+    records = await queryArcGisLayerByPoint(endpointUrl, googleResolution.location)
+  }
+
+  if (records.length === 0) {
+    for (const searchAddress of searchAddresses) {
+      const whereClauses = buildWhereClauses(searchAddress)
+
+      for (const whereClause of whereClauses) {
+        records = await queryArcGisLayer(endpointUrl, whereClause)
+        if (records.length > 0) {
+          break
+        }
+      }
+
+      if (records.length > 0) {
+        break
+      }
+    }
+  }
+
   const record = records
-    .map((candidate) => ({ candidate, score: scoreRecord(candidate, address) }))
+    .map((candidate) => ({ candidate, score: scoreRecord(candidate, preferredAddress) }))
     .sort((a, b) => b.score - a.score)[0]?.candidate
 
   if (!record) {
@@ -403,6 +673,36 @@ async function lookupFromArcGisLayerEndpoint(
     parcelId: parcelId || undefined,
     matchedAddress,
   }
+}
+
+export async function suggestPropertyAddresses(addressInput: string): Promise<string[]> {
+  const trimmedInput = addressInput.trim()
+
+  if (!API_URL || trimmedInput.length < 3) {
+    return []
+  }
+
+  const suggestions: string[] = []
+
+  const shouldUseGoogleSuggestion =
+    Boolean(GOOGLE_GEOCODING_API_KEY) && /\d/.test(trimmedInput) && trimmedInput.length >= 6
+
+  if (shouldUseGoogleSuggestion) {
+    const googleResolution = await resolveAddressWithGoogle(trimmedInput)
+    if (googleResolution?.formattedAddress) {
+      suggestions.push(googleResolution.formattedAddress)
+    }
+  }
+
+  if (isArcGisServicesRoot(API_URL)) {
+    const serviceSuggestions = await suggestFromArcGisServicesRoot(API_URL, trimmedInput)
+    suggestions.push(...serviceSuggestions)
+  } else if (isArcGisLayerEndpoint(API_URL)) {
+    const layerSuggestions = await suggestFromArcGisLayerEndpoint(API_URL, trimmedInput)
+    suggestions.push(...layerSuggestions)
+  }
+
+  return dedupeAddressList(suggestions).slice(0, 8)
 }
 
 export async function lookupTaxableValueByAddress(
