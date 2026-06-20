@@ -1,0 +1,43 @@
+:root {
+  --ink-950: #071a2c;
+  --ink-900: #0d2b45;
+  --ink-700: #36536b;
+  --slate-300: #c2cfdb;
+  --slate-200: #dce5ee;
+  --teal-500: #10b981;
+  --teal-300: #5eead4;
+  --gold-200: #f9d67a;
+
+  --body: 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
+  --heading: 'Gill Sans MT', 'Trebuchet MS', 'Segoe UI', sans-serif;
+
+  font-family: var(--body);
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--ink-900);
+  background: radial-gradient(circle at 15% 10%, #fff8e8 0%, #f0f8ff 45%, #eaf5f2 100%);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--heading);
+}
