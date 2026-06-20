@@ -302,12 +302,44 @@ button:disabled {
   color: var(--ink-900);
 }
 
+.result-grid .metric-primary {
+  font-size: clamp(1.05rem, 2.3vw, 1.28rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.result-grid .metric-secondary {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--ink-800);
+}
+
 .result-grid p + p {
   margin-top: 3px;
 }
 
 .difference {
-  background: linear-gradient(180deg, rgba(16, 185, 129, 0.12), rgba(255, 255, 255, 0.95));
+  background: linear-gradient(180deg, rgba(163, 73, 180, 0.16), rgba(255, 255, 255, 0.98));
+  border-color: #a349b4;
+  box-shadow: 0 10px 22px rgba(163, 73, 180, 0.22);
+}
+
+.difference h3 {
+  color: var(--ink-950);
+}
+
+.difference p {
+  font-weight: 700;
+}
+
+.difference .metric-primary {
+  color: #a349b4;
+  font-size: clamp(1.24rem, 3vw, 1.8rem);
+}
+
+.difference .metric-secondary {
+  color: var(--ink-900);
+  font-weight: 700;
 }
 
 .meta,

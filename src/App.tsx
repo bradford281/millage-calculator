@@ -297,22 +297,34 @@ function App() {
 
         {calculations ? (
           <div className="result-grid">
+            <article className="difference">
+              <h3>Difference</h3>
+              <p className="metric-primary">
+                {toCurrency(calculations.difference.monthly)} / month
+              </p>
+              <p className="metric-secondary">
+                {toCurrency(calculations.difference.annual)} / year
+              </p>
+            </article>
+
             <article>
               <h3>Current</h3>
-              <p>{toCurrency(calculations.current.annual)} / year</p>
-              <p>{toCurrency(calculations.current.monthly)} / month</p>
+              <p className="metric-primary">
+                {toCurrency(calculations.current.monthly)} / month
+              </p>
+              <p className="metric-secondary">
+                {toCurrency(calculations.current.annual)} / year
+              </p>
             </article>
 
             <article>
               <h3>Proposed</h3>
-              <p>{toCurrency(calculations.proposed.annual)} / year</p>
-              <p>{toCurrency(calculations.proposed.monthly)} / month</p>
-            </article>
-
-            <article className="difference">
-              <h3>Difference</h3>
-              <p>{toCurrency(calculations.difference.annual)} / year</p>
-              <p>{toCurrency(calculations.difference.monthly)} / month</p>
+              <p className="metric-primary">
+                {toCurrency(calculations.proposed.monthly)} / month
+              </p>
+              <p className="metric-secondary">
+                {toCurrency(calculations.proposed.annual)} / year
+              </p>
             </article>
           </div>
         ) : (
@@ -353,12 +365,28 @@ function App() {
           </article>
 
           <article>
-            <h3>Potential Improvements</h3>
+            <h3>What This Renewal Supports</h3>
             <ul className="proposal-list">
-              <li>Expanded hours and more reliable weekly access.</li>
-              <li>Program growth for children, teens, and seniors.</li>
-              <li>More digital resources, technology, and public computers.</li>
-              <li>Facility and collection maintenance over time.</li>
+              <li>
+                Primarily continuation of current library services residents rely
+                on every week.
+              </li>
+              <li>
+                Ongoing operating hours and baseline staffing needed to keep the
+                library open and responsive.
+              </li>
+              <li>
+                Existing programming for children, teens, adults, and seniors,
+                including recurring educational and community events.
+              </li>
+              <li>
+                Continued access to current collections, digital resources,
+                computers, and internet services used by patrons daily.
+              </li>
+              <li>
+                Routine building operations, maintenance, and service delivery costs
+                that are increasingly affected by inflation.
+              </li>
             </ul>
           </article>
         </div>
