@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import fs from 'node:fs'
 
 const thisFile = fileURLToPath(import.meta.url)
 const scriptsDir = path.dirname(thisFile)
@@ -62,6 +63,64 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function parseTerraformTfvars() {
+  const tfvarsPath = path.join(terraformDir, 'terraform.tfvars')
+
+  if (!fs.existsSync(tfvarsPath)) {
+    return {
+      hasCustomDomains: false,
+      certificateArn: null,
+    }
+  }
+
+  const raw = fs.readFileSync(tfvarsPath, 'utf8')
+  const domainMatch = raw.match(/^\s*domain_names\s*=\s*\[([\s\S]*?)\]/m)
+  const hasCustomDomains = Boolean(
+    domainMatch && domainMatch[1].replace(/["'\s,]/g, '').length > 0,
+  )
+  const certMatch = raw.match(/^\s*acm_certificate_arn\s*=\s*"([^"]+)"/m)
+
+  return {
+    hasCustomDomains,
+    certificateArn: certMatch ? certMatch[1].trim() : null,
+  }
+}
+
+function ensureCertificateReadyForCustomDomains() {
+  const { hasCustomDomains, certificateArn } = parseTerraformTfvars()
+
+  if (!hasCustomDomains) {
+    return
+  }
+
+  if (!certificateArn) {
+    console.error(
+      'Custom domains are configured but acm_certificate_arn is missing in infra/terraform/terraform.tfvars.',
+    )
+    process.exit(1)
+  }
+
+  const status = captureCommand('aws', [
+    'acm',
+    'describe-certificate',
+    '--region',
+    'us-east-1',
+    '--certificate-arn',
+    certificateArn,
+    '--query',
+    'Certificate.Status',
+    '--output',
+    'text',
+  ])
+
+  if (status !== 'ISSUED') {
+    console.error(
+      `Certificate ${certificateArn} is ${status}. Complete DNS validation before deploy.`,
+    )
+    process.exit(1)
+  }
+}
+
 async function waitForInvalidation(distributionId, invalidationId) {
   const timeoutAt = Date.now() + 15 * 60 * 1000
 
@@ -98,6 +157,7 @@ async function waitForInvalidation(distributionId, invalidationId) {
 
 async function main() {
   runCommand('npm', ['run', 'build'], { shell: process.platform === 'win32' })
+  ensureCertificateReadyForCustomDomains()
   runCommand('terraform', ['apply', '-auto-approve', '-no-color'], { cwd: terraformDir })
 
   const distributionId = captureCommand('terraform', ['output', '-raw', 'cloudfront_distribution_id'], {
@@ -143,7 +203,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+try {
+  await main()
+} catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)
-})
+}

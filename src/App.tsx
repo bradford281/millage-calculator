@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
 } from 'react'
@@ -23,6 +24,7 @@ const ANNUAL_COST_PER_100K = 100000 * (DEFAULT_INCREMENTAL_MILLAGE / 1000)
 const PUBLIC_NOTICE_URL =
   'https://www.hazelpark.org/2026-05-05%20PUBLIC%20NOTICE%20-%20Copy.jpg?t=202605051454560'
 const HPCAN_LOGO_URL = 'https://hpcan.org/assets/images/image03.png?v=bbf9bdb8'
+const SCENARIO_TAXABLE_VALUES = [50000, 100000, 150000, 200000]
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -54,6 +56,8 @@ function toCurrency(value: number): string {
 }
 
 function App() {
+  const resultsRef = useRef<HTMLElement | null>(null)
+
   const [address, setAddress] = useState('')
   const [taxableValueInput, setTaxableValueInput] = useState('')
   const [currentMillageInput, setCurrentMillageInput] = useState(
@@ -68,6 +72,9 @@ function App() {
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [addressSuggestions, setAddressSuggestions] = useState<string[]>([])
   const [isSuggestingAddress, setIsSuggestingAddress] = useState(false)
+  const [lastLookupAt, setLastLookupAt] = useState('')
+  const [shareStatus, setShareStatus] = useState('')
+  const [shouldFocusResults, setShouldFocusResults] = useState(false)
 
   const taxableValue = parsePositiveNumber(taxableValueInput)
   const currentMillage = parsePositiveNumber(currentMillageInput)
@@ -91,6 +98,61 @@ function App() {
 
     return { current, proposed, difference }
   }, [taxableValue, currentMillage, proposedMillage])
+
+  useEffect(() => {
+    const params = new URLSearchParams(globalThis.location.search)
+    const tv = params.get('tv')
+    const cm = params.get('cm')
+    const pm = params.get('pm')
+    const sharedAddress = params.get('a')
+    const ma = params.get('ma')
+    const pid = params.get('pid')
+    const addr = params.get('addr')
+
+    if (tv !== null && parsePositiveNumber(tv) !== null) {
+      setTaxableValueInput(tv)
+    }
+
+    if (cm !== null && parsePositiveNumber(cm) !== null) {
+      setCurrentMillageInput(cm)
+    }
+
+    if (pm !== null && parsePositiveNumber(pm) !== null) {
+      setProposedMillageInput(pm)
+    }
+
+    const resolvedAddress = sharedAddress || ma || addr
+
+    if (resolvedAddress) {
+      setMatchedAddress(resolvedAddress)
+      setAddress(resolvedAddress)
+    }
+
+    if (pid) {
+      setParcelId(pid)
+    }
+
+  }, [])
+
+  const lookupStatusMessage = useMemo(() => {
+    if (isLookingUp) {
+      return 'Looking up taxable value for the entered address.'
+    }
+
+    if (isSuggestingAddress) {
+      return 'Finding address suggestions.'
+    }
+
+    if (lookupError) {
+      return lookupError
+    }
+
+    if (matchedAddress) {
+      return 'Address matched and taxable value updated.'
+    }
+
+    return ''
+  }, [isLookingUp, isSuggestingAddress, lookupError, matchedAddress])
 
   const handleAddressChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextAddress = event.target.value
@@ -135,6 +197,124 @@ function App() {
     }
   }, [address])
 
+  useEffect(() => {
+    if (shouldFocusResults && calculations && resultsRef.current) {
+      resultsRef.current.focus()
+      setShouldFocusResults(false)
+    }
+  }, [shouldFocusResults, calculations])
+
+  const applyScenario = (value: number) => {
+    setTaxableValueInput(String(value))
+    setShouldFocusResults(true)
+  }
+
+  const buildShareUrl = () => {
+    const url = new URL(globalThis.location.href)
+    url.search = ''
+    url.searchParams.set('tv', taxableValueInput)
+    url.searchParams.set('cm', currentMillageInput)
+    url.searchParams.set('pm', proposedMillageInput)
+    if (parcelId) {
+      url.searchParams.set('pid', parcelId)
+    }
+    const shareAddress = matchedAddress || address.trim()
+    if (shareAddress) {
+      url.searchParams.set('a', shareAddress)
+    }
+    return url.toString()
+  }
+
+  const buildEstimateReport = () => {
+    if (!calculations) {
+      return ''
+    }
+
+    const taxableDisplay = taxableValue !== null ? toCurrency(taxableValue) : 'N/A'
+    const generatedAt = new Date().toLocaleString()
+    const lines = [
+      'HAZEL PARK LIBRARY MILLAGE IMPACT REPORT',
+      'Prepared by Hazel Park Civic Action Network',
+      `Generated: ${generatedAt}`,
+      '',
+      'PROPERTY',
+      `Taxable value: ${taxableDisplay}`,
+      `Matched address: ${matchedAddress || 'Not provided'}`,
+      `Parcel ID: ${parcelId || 'Not provided'}`,
+      '',
+      'MILLAGE RATES',
+      `Current library millage: ${currentMillage !== null ? currentMillage.toFixed(4) : 'N/A'} mills`,
+      `Proposed library millage: ${proposedMillage !== null ? proposedMillage.toFixed(4) : 'N/A'} mills`,
+      '',
+      'ESTIMATED COST',
+      `Difference: ${toCurrency(calculations.difference.monthly)} per month (${toCurrency(calculations.difference.annual)} per year)`,
+      `Proposed: ${toCurrency(calculations.proposed.monthly)} per month (${toCurrency(calculations.proposed.annual)} per year)`,
+      `Current: ${toCurrency(calculations.current.monthly)} per month (${toCurrency(calculations.current.annual)} per year)`,
+      '',
+      'METHODOLOGY',
+      'Annual tax = Taxable value x (millage / 1000)',
+      'Monthly tax = Annual tax / 12',
+      '',
+      'SOURCE',
+      `Oakland County GIS${lastLookupAt ? ` | Last lookup: ${lastLookupAt}` : ''}`,
+    ]
+
+    return lines.join('\n')
+  }
+
+  const handleShareEstimate = async () => {
+    if (!calculations) {
+      return
+    }
+
+    const shareUrl = buildShareUrl()
+    const reportText = buildEstimateReport()
+    const shareText = `${reportText}\n\nSHARE LINK\n${shareUrl}`
+
+    try {
+      setShareStatus('Preparing share...')
+
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({
+          title: 'Hazel Park Library Millage Impact Report',
+          text: shareText,
+          url: shareUrl,
+        })
+        setShareStatus('Report shared.')
+        return
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareText)
+        setShareStatus('Report copied to clipboard. Paste it into email, notes, or text to share.')
+        return
+      }
+
+      if (typeof globalThis.prompt === 'function') {
+        globalThis.prompt('Copy report text', shareText)
+      }
+      setShareStatus('Share APIs are not available here. A report copy dialog was opened.')
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        setShareStatus('Sharing canceled.')
+        return
+      }
+
+      if (typeof globalThis.prompt === 'function') {
+        globalThis.prompt('Copy report text', shareText)
+        setShareStatus('Share failed, but a report copy dialog was opened.')
+        return
+      }
+
+      setShareStatus('Could not share report. Copy the page URL manually.')
+    }
+  }
+
+  const handlePrintEstimate = () => {
+    setShareStatus('')
+    globalThis.print()
+  }
+
   const handleLookup = async () => {
     if (!address.trim()) {
       setLookupError('Enter a property address to look up taxable value.')
@@ -149,6 +329,8 @@ function App() {
       setTaxableValueInput(String(Math.round(result.taxableValue)))
       setMatchedAddress(result.matchedAddress ?? '')
       setParcelId(result.parcelId ?? '')
+      setLastLookupAt(new Date().toLocaleString())
+      setShouldFocusResults(true)
     } catch (error) {
       setMatchedAddress('')
       setParcelId('')
@@ -226,9 +408,16 @@ function App() {
           {isSuggestingAddress ? (
             <p className="meta">Finding address suggestions...</p>
           ) : null}
+          <p className="sr-only" role="status" aria-live="polite">
+            {lookupStatusMessage}
+          </p>
         </form>
 
-        {lookupError ? <p className="error">{lookupError}</p> : null}
+        {lookupError ? (
+          <p className="error" role="alert" aria-live="assertive">
+            {lookupError}
+          </p>
+        ) : null}
 
         {matchedAddress ? (
           <p className="meta lookup-match-meta">
@@ -281,19 +470,131 @@ function App() {
           </label>
         </div>
 
-        <p className="formula">
-          Formula: Annual tax = Taxable value x (millage / 1000); Monthly tax =
-          Annual / 12
-        </p>
-
-        <p className="small-note">
-          Default millage values are based on Hazel Park District Library 2026
-          ballot language (2.0991 renewal, 2.5 proposed total).
-        </p>
+        <div className="scenario-buttons" aria-label="Quick taxable value scenarios">
+          {SCENARIO_TAXABLE_VALUES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className="scenario-button"
+              onClick={() => applyScenario(value)}
+            >
+              {toCurrency(value)} scenario
+            </button>
+          ))}
+        </div>
       </section>
 
-      <section className="panel results">
-        <h2>Estimated Cost</h2>
+      <section className="panel results" ref={resultsRef} tabIndex={-1}>
+        <div className="results-header">
+          <h2>
+            Estimated Cost
+            {' '}
+            <span
+              className="inline-hint"
+              title="Taxable value is used for this estimate. Open Estimate details below for formula, source, and assumptions."
+              aria-label="Estimate details hint"
+            >
+              i
+            </span>
+          </h2>
+          <div className="result-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handleShareEstimate}
+              disabled={!calculations}
+            >
+              Share Estimate
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handlePrintEstimate}
+              disabled={!calculations}
+            >
+              Print
+            </button>
+          </div>
+        </div>
+
+        {calculations ? (
+          <div className="print-summary">
+            <div className="print-summary-header">
+              <p className="print-brand-line">Hazel Park Civic Action Network</p>
+              <h3>Hazel Park Library Millage Impact Report</h3>
+              <p className="print-report-subtitle">
+                Generated: {new Date().toLocaleString()}
+              </p>
+            </div>
+
+            <section className="print-section" aria-label="Property details">
+              <h4>Property Details</h4>
+              <dl className="print-kv-grid">
+                <div className="print-kv">
+                  <dt>Taxable value</dt>
+                  <dd>{taxableValue !== null ? toCurrency(taxableValue) : 'N/A'}</dd>
+                </div>
+                <div className="print-kv">
+                  <dt>Matched address</dt>
+                  <dd>{matchedAddress || 'Not provided'}</dd>
+                </div>
+                <div className="print-kv">
+                  <dt>Parcel ID</dt>
+                  <dd>{parcelId || 'Not provided'}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="print-section" aria-label="Millage rates and costs">
+              <h4>Millage And Cost Summary</h4>
+              <table className="print-cost-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Scenario</th>
+                    <th scope="col">Monthly</th>
+                    <th scope="col">Annual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Difference</th>
+                    <td>{toCurrency(calculations.difference.monthly)}</td>
+                    <td>{toCurrency(calculations.difference.annual)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Proposed</th>
+                    <td>{toCurrency(calculations.proposed.monthly)}</td>
+                    <td>{toCurrency(calculations.proposed.annual)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Current</th>
+                    <td>{toCurrency(calculations.current.monthly)}</td>
+                    <td>{toCurrency(calculations.current.annual)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <dl className="print-kv-grid print-rates-grid">
+                <div className="print-kv">
+                  <dt>Current library millage</dt>
+                  <dd>{currentMillage !== null ? currentMillage.toFixed(4) : 'N/A'} mills</dd>
+                </div>
+                <div className="print-kv">
+                  <dt>Proposed library millage</dt>
+                  <dd>{proposedMillage !== null ? proposedMillage.toFixed(4) : 'N/A'} mills</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="print-section" aria-label="Method and source">
+              <h4>Method And Source</h4>
+              <p>Annual tax = Taxable value x (millage / 1000); Monthly tax = Annual tax / 12.</p>
+              <p>
+                Parcel data source: Oakland County GIS
+                {lastLookupAt ? ` | Last lookup: ${lastLookupAt}` : ''}
+              </p>
+            </section>
+          </div>
+        ) : null}
 
         {calculations ? (
           <div className="result-grid">
@@ -337,6 +638,42 @@ function App() {
         <p className="small-note">
           Parcel lookup unavailable? Enter taxable value manually.
         </p>
+
+        <details className="fine-details" aria-label="Estimate assumptions and data source">
+          <summary>Estimate details (formula, defaults, source, assumptions)</summary>
+          <p>
+            <strong>Formula:</strong>
+            {' '}
+            Annual tax = Taxable value x (millage / 1000); Monthly tax = Annual / 12.
+          </p>
+          <p>
+            <strong>Default millage values:</strong>
+            {' '}
+            Hazel Park District Library 2026 ballot language (2.0991 renewal, 2.5 proposed total).
+          </p>
+          <p>
+            <strong>Parcel data source:</strong>
+            {' '}
+            Oakland County GIS (queried live at lookup time)
+            {lastLookupAt ? ` | Last lookup: ${lastLookupAt}` : ''}.
+          </p>
+          <ul className="proposal-list">
+            <li>Tax calculations are based on taxable value, not market value.</li>
+            <li>
+              Inputs use the current and proposed millage rates shown above and may
+              not include every item on a full tax bill.
+            </li>
+            <li>
+              Parcel lookup data can occasionally lag, be incomplete, or include errors.
+            </li>
+          </ul>
+        </details>
+
+        {shareStatus ? (
+          <p className="meta share-status" role="status" aria-live="polite">
+            {shareStatus}
+          </p>
+        ) : null}
       </section>
 
       <section className="panel proposal-details">
