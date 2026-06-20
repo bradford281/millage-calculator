@@ -10,6 +10,86 @@
 				"dev"
 			],
 			"isBackground": true
+		},
+		{
+			"label": "Inspect App files and HPCAN site",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$ErrorActionPreference='Stop'; Write-Host '--- App.tsx (hero excerpt) ---'; Get-Content -Path 'src/App.tsx' -TotalCount 120; Write-Host '--- App.css (hero excerpt) ---'; Get-Content -Path 'src/App.css' -TotalCount 220; Write-Host '--- hpcan.org head excerpt ---'; try { $r=Invoke-WebRequest -Uri 'https://hpcan.org/' -UseBasicParsing; $html=$r.Content; $title=[regex]::Match($html,'<title>(.*?)</title>','IgnoreCase').Groups[1].Value; Write-Host ('Title: ' + $title); $matches=[regex]::Matches($html,'#(?:[0-9a-fA-F]{3}){1,2}'); ($matches | Select-Object -First 20 | ForEach-Object {$_.Value}) -join ', ' | Write-Host; $logo=[regex]::Matches($html,'https?://[^\"\\']+\\.(?:png|svg|jpg|jpeg)','IgnoreCase') | Select-Object -First 5; Write-Host 'Image URLs:'; $logo | ForEach-Object { Write-Host $_.Value } } catch { Write-Host $_.Exception.Message }"
+			]
+		},
+		{
+			"label": "Read App.tsx head",
+			"type": "shell",
+			"command": "Get-Content src/App.tsx -TotalCount 260"
+		},
+		{
+			"label": "Read App.css head",
+			"type": "shell",
+			"command": "Get-Content src/App.css -TotalCount 320"
+		},
+		{
+			"label": "Fetch HPCAN brand cues",
+			"type": "shell",
+			"command": "$r = Invoke-WebRequest https://hpcan.org/; $html = $r.Content; Write-Output (([regex]::Match($html,'<title>(.*?)</title>','IgnoreCase')).Groups[1].Value); [regex]::Matches($html,'https?://[^\"'' ]+\\.(png|svg|jpg|jpeg)','IgnoreCase') | Select-Object -First 15 | ForEach-Object { $_.Value }; [regex]::Matches($html,'#[0-9a-fA-F]{6}') | Select-Object -First 20 | ForEach-Object { $_.Value }"
+		},
+		{
+			"label": "Find HPCAN logo paths",
+			"type": "shell",
+			"command": "$html=(Invoke-WebRequest https://hpcan.org/).Content; [regex]::Matches($html,'(?:src|href)=\"([^\"]*assets[^\"]+)\"','IgnoreCase') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique | Select-Object -First 40"
+		},
+		{
+			"label": "Search logo keyword in hpcan html",
+			"type": "shell",
+			"command": "$html=(Invoke-WebRequest https://hpcan.org/).Content; Select-String -InputObject $html -Pattern 'logo|HPCAN|Community Action Network|assets/images' -AllMatches | ForEach-Object { $_.Matches.Value } | Select-Object -Unique | Select-Object -First 40"
+		},
+		{
+			"label": "Apply HPCAN brand styling update",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $app='src/App.tsx'; $css='src/App.css'; $appText=Get-Content -Raw $app; $newBrand=@'\n        <div className=\"hpcan-brand\" aria-label=\"HPCAN branding\">\n          <span className=\"hpcan-badge\">HPCAN</span>\n          <span className=\"hpcan-name\">Hazel Park Community Action Network</span>\n        </div>\n'@; $appText=[regex]::Replace($appText,'<p className=\"eyebrow\">Hazel Park Library Proposal</p>\\s*<div className=\"hpcan-brand\"[\\s\\S]*?</div>','<p className=\"eyebrow\">Hazel Park Library Proposal</p>' + $newBrand); Set-Content -Path $app -Value $appText; $cssText=Get-Content -Raw $css; $newCss=@'\n.hpcan-brand {\n  margin-top: 10px;\n  display: inline-flex;\n  align-items: center;\n  gap: 10px;\n  padding: 8px 12px;\n  border-radius: 999px;\n  background: #f6fcf4;\n  border: 1px solid rgba(0, 61, 90, 0.25);\n  box-shadow: 0 6px 18px rgba(0, 17, 48, 0.18);\n}\n\n.hpcan-badge {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  min-width: 58px;\n  padding: 4px 10px;\n  border-radius: 999px;\n  font-size: 0.76rem;\n  font-weight: 800;\n  letter-spacing: 0.08em;\n  color: #fdf5e4;\n  background: linear-gradient(135deg, #001130, #003d5a);\n}\n\n.hpcan-name {\n  font-size: 0.85rem;\n  font-weight: 700;\n  color: #003d5a;\n  letter-spacing: 0.01em;\n}\n'@; $cssText=[regex]::Replace($cssText,'(?s)\\.hpcan-brand \\{.*?\\}\\s*\\.hpcan-badge \\{.*?\\}\\s*\\.hpcan-name \\{.*?\\}',''+$newCss.Trim()); Set-Content -Path $css -Value $cssText;"
+		},
+		{
+			"label": "Verify App.tsx branding block",
+			"type": "shell",
+			"command": "Get-Content src/App.tsx -TotalCount 210"
+		},
+		{
+			"label": "Verify App.css branding block",
+			"type": "shell",
+			"command": "Get-Content src/App.css -TotalCount 120"
+		},
+		{
+			"label": "Refine HPCAN JSX block",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $app='src/App.tsx'; $text=Get-Content -Raw $app; $new=@'\n        <div className=\"hpcan-brand\" aria-label=\"HPCAN branding\">\n          <span className=\"hpcan-badge\">HPCAN</span>\n          <a\n            className=\"hpcan-name\"\n            href=\"https://hpcan.org/\"\n            target=\"_blank\"\n            rel=\"noreferrer\"\n          >\n            Hazel Park Community Action Network\n          </a>\n        </div>\n'@; $text=[regex]::Replace($text,'<div className=\"hpcan-brand\"[\\s\\S]*?</div>\\s*',$new,1); Set-Content -Path $app -Value $text;"
+		},
+		{
+			"label": "Add HPCAN link styles",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $css='src/App.css'; $text=Get-Content -Raw $css; if($text -notmatch '\\.hpcan-name:hover'){ $text += \"`n.hpcan-name {`n  text-decoration: none;`n}`n`n.hpcan-name:hover {`n  text-decoration: underline;`n  text-underline-offset: 2px;`n}`n\" }; Set-Content -Path $css -Value $text;"
+		},
+		{
+			"label": "Fix HPCAN link styles safely",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $css='src/App.css'; $text=Get-Content -Raw $css; if($text -notmatch 'hpcan-name:hover'){ $append=@'\n.hpcan-name {\n  text-decoration: none;\n}\n\n.hpcan-name:hover {\n  text-decoration: underline;\n  text-underline-offset: 2px;\n}\n'@; $text = $text + $append; Set-Content -Path $css -Value $text }"
+		},
+		{
+			"label": "Check branding snippets",
+			"type": "shell",
+			"command": "Write-Host '--- App.tsx ---'; Get-Content src/App.tsx -TotalCount 220; Write-Host '--- App.css ---'; Get-Content src/App.css -TotalCount 150; Write-Host '--- App.css tail ---'; Get-Content src/App.css | Select-Object -Last 40"
+		},
+		{
+			"label": "Verify HPCAN lines and build",
+			"type": "shell",
+			"command": "Write-Host 'App.tsx hpcan lines:'; Select-String -Path src/App.tsx -Pattern 'hpcan-brand|hpcan-badge|hpcan-name|hpcan.org' -SimpleMatch:$false; Write-Host 'App.css hpcan lines:'; Select-String -Path src/App.css -Pattern '\\.hpcan-brand|\\.hpcan-badge|\\.hpcan-name' -SimpleMatch:$false; npm run build"
+		},
+		{
+			"label": "Link HPCAN name to site",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $app='src/App.tsx'; $text=Get-Content -Raw $app; $text=$text -replace '<span className=\"hpcan-name\">Hazel Park Community Action Network</span>','<a className=\"hpcan-name\" href=\"https://hpcan.org/\" target=\"_blank\" rel=\"noreferrer\">Hazel Park Community Action Network</a>'; Set-Content -Path $app -Value $text; npm run build"
 		}
 	]
 }

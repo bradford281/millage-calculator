@@ -22,6 +22,7 @@ const DEFAULT_INCREMENTAL_MILLAGE =
 const ANNUAL_COST_PER_100K = 100000 * (DEFAULT_INCREMENTAL_MILLAGE / 1000)
 const PUBLIC_NOTICE_URL =
   'https://www.hazelpark.org/2026-05-05%20PUBLIC%20NOTICE%20-%20Copy.jpg?t=202605051454560'
+const HPCAN_LOGO_URL = 'https://hpcan.org/assets/images/image03.png?v=bbf9bdb8'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -162,12 +163,35 @@ function App() {
   return (
     <main className="app-shell">
       <header className="hero">
+        <div className="hpcan-brand" aria-label="HPCAN branding">
+          <a
+            className="hpcan-logo-link"
+            href="https://hpcan.org/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Hazel Park Civic Action Network"
+          >
+            <img
+              className="hpcan-logo"
+              src={HPCAN_LOGO_URL}
+              alt="Hazel Park Civic Action Network logo"
+              loading="lazy"
+            />
+          </a>
+          <a
+            className="hpcan-name"
+            href="https://hpcan.org/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Hazel Park Civic Action Network
+          </a>
+        </div>
         <p className="eyebrow">Hazel Park Library Proposal</p>
         <h1>Millage Impact Calculator</h1>
         <p className="hero-copy">
-          Enter an address to pull taxable value from parcel data, then compare
-          current and proposed library tax. Estimates are based on taxable value,
-          not market value.
+          Enter an address to pull parcel taxable value, then compare current and
+          proposed library tax estimates.
         </p>
       </header>
 
@@ -207,7 +231,7 @@ function App() {
         {lookupError ? <p className="error">{lookupError}</p> : null}
 
         {matchedAddress ? (
-          <p className="meta">
+          <p className="meta lookup-match-meta">
             Matched address: <strong>{matchedAddress}</strong>
             {parcelId ? (
               <>
@@ -299,7 +323,7 @@ function App() {
         )}
 
         <p className="small-note">
-          If parcel lookup is unavailable, enter taxable value manually.
+          Parcel lookup unavailable? Enter taxable value manually.
         </p>
       </section>
 
@@ -325,9 +349,6 @@ function App() {
             <p>
               About <strong>{toCurrency(ANNUAL_COST_PER_100K)}</strong> per year for
               every <strong>$100,000</strong> of taxable value.
-            </p>
-            <p>
-              Formula used here: Annual tax = Taxable value x (millage / 1000).
             </p>
           </article>
 
@@ -359,8 +380,8 @@ function App() {
           </a>          
           <h3>Open Meetings And Public Information</h3>
           <p>
-            Check these official pages for district library details, proposal
-            references, and meeting information:
+            Check these official pages for district library details, meeting
+            schedules, and recordings:
           </p>
           <ul className="proposal-list">
             <li>
@@ -390,29 +411,21 @@ function App() {
                 Boards And Commissions (Includes Library-Related Bodies)
               </a>
             </li>
-          </ul>
-
-          <h3>Watch Meeting Recordings</h3>
-          <p>
-            You can browse all posted meetings and city recordings on the
-            official channel:
-          </p>
-          <ul className="proposal-list">
             <li>
               <a
                 href="https://www.youtube.com/@cityofhazelparkcityhall7787/videos"
                 target="_blank"
                 rel="noreferrer"
               >
-                City of Hazel Park City Hall YouTube Channel
+                City of Hazel Park City Hall YouTube Channel (Recordings)
               </a>
             </li>
           </ul>
         </div>
 
         <p className="small-note">
-          Meeting schedules and agenda links can change frequently, so verify the
-          latest updates directly on official pages before attending.
+          Meeting schedules can change. Verify the latest details on official
+          pages before attending.
         </p>
       </section>
     </main>
@@ -420,3 +433,6 @@ function App() {
 }
 
 export default App
+
+
+

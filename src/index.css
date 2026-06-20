@@ -1,18 +1,24 @@
 :root {
   --ink-950: #071a2c;
   --ink-900: #0d2b45;
+  --ink-800: #244055;
   --ink-700: #36536b;
   --slate-300: #c2cfdb;
   --slate-200: #dce5ee;
   --teal-500: #10b981;
   --teal-300: #5eead4;
   --gold-200: #f9d67a;
+  --hpcan-navy: #001130;
+  --hpcan-blue: #003d5a;
+  --hpcan-blue-light: #0c5c7c;
+  --hpcan-cream: #fdf5e4;
+  --hpcan-soft: #f6fcf4;
 
   --body: 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
   --heading: 'Gill Sans MT', 'Trebuchet MS', 'Segoe UI', sans-serif;
 
   font-family: var(--body);
-  line-height: 1.45;
+  line-height: 1.5;
   font-weight: 400;
   color: var(--ink-900);
   background: radial-gradient(circle at 15% 10%, #fff8e8 0%, #f0f8ff 45%, #eaf5f2 100%);
