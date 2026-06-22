@@ -68,7 +68,7 @@ Security note: Vite `VITE_` variables are bundled client-side, so keep key restr
 
 If you want simple usage counts without tracking people, set `VITE_USAGE_METRICS_ENDPOINT` to a POST endpoint you control.
 
-The same endpoint also supports `GET` and returns `{ "todayCount": number }`, which the page uses to render an anonymous daily usage count.
+The same endpoint also supports `GET` and returns `{ "todayCount": number, "allTimeCount": number }`, which the page uses to render anonymous daily and all-time usage counts.
 
 The app sends a fire-and-forget event only when an estimate is successfully calculated. Payload fields are limited to:
 
@@ -131,6 +131,28 @@ npm run dev
 
 ```bash
 npm run build
+```
+
+## Run Tests In VS Code (Test Explorer)
+
+1. Install the VS Code extension `Vitest` (extension ID: `vitest.explorer`).
+2. Open this project folder in VS Code and trust the workspace when prompted.
+3. Open the Testing view (beaker icon in the Activity Bar).
+4. Run Command Palette actions:
+	- `Vitest: Start`
+	- `Testing: Refresh Tests`
+5. Use the Testing view to run all tests, a file, or an individual test case.
+
+If tests do not appear:
+
+- Verify you opened the project root (the folder containing `package.json` and `vitest.config.ts`).
+- Check View -> Output and select `Vitest` for discovery errors.
+- Reload VS Code window and refresh tests again.
+
+You can still run tests from terminal:
+
+```bash
+npm test
 ```
 
 ## Deploy To AWS With Terraform

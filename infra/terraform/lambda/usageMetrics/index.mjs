@@ -2,6 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import {
   DynamoDBDocumentClient,
   GetCommand,
+  ScanCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
 
@@ -33,15 +34,26 @@ export async function handler(event) {
   const method = event.requestContext?.http?.method
 
   if (method === 'GET') {
-    const item = await ddbClient.send(
+    const todayItem = await ddbClient.send(
       new GetCommand({
         TableName: tableName,
         Key: { metric_key: buildMetricKey() },
       }),
     )
 
-    const todayCount = Number(item.Item?.total_count ?? 0)
-    return response(200, { todayCount })
+    const allRows = await ddbClient.send(
+      new ScanCommand({
+        TableName: tableName,
+        ProjectionExpression: 'total_count',
+      }),
+    )
+
+    const allTimeCount = (allRows.Items ?? []).reduce((total, row) => {
+      return total + Number(row.total_count ?? 0)
+    }, 0)
+
+    const todayCount = Number(todayItem.Item?.total_count ?? 0)
+    return response(200, { todayCount, allTimeCount })
   }
 
   if (method !== 'POST') {

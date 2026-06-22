@@ -60,6 +60,7 @@ resource "aws_iam_role_policy" "usage_metrics_lambda" {
         Effect = "Allow"
         Action = [
           "dynamodb:GetItem",
+          "dynamodb:Scan",
           "dynamodb:UpdateItem"
         ]
         Resource = aws_dynamodb_table.usage_metrics[0].arn

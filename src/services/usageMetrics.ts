@@ -2,6 +2,7 @@ const usageMetricsEndpoint = import.meta.env.VITE_USAGE_METRICS_ENDPOINT?.trim()
 
 type UsageCountResponse = {
   todayCount?: number
+  allTimeCount?: number
 }
 
 export function trackEstimateCalculated(eventDetails: {
@@ -32,7 +33,7 @@ export function trackEstimateCalculated(eventDetails: {
   })
 }
 
-export async function fetchEstimateUsageCount(): Promise<number | null> {
+export async function fetchEstimateUsageCount(): Promise<UsageCountResponse | null> {
   if (!usageMetricsEndpoint) {
     return null
   }
@@ -52,7 +53,11 @@ export async function fetchEstimateUsageCount(): Promise<number | null> {
       return null
     }
 
-    return payload.todayCount
+    if (typeof payload.allTimeCount !== 'number') {
+      return null
+    }
+
+    return payload
   } catch {
     return null
   }

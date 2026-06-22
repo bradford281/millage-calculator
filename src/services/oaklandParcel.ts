@@ -82,11 +82,9 @@ function parseNumber(value: unknown): number | null {
 
 function pickValue(record: LooseObject, keys: string[]): string | number | null {
   for (const key of keys) {
-    if (
-      key in record &&
-      (typeof record[key] === 'string' || typeof record[key] === 'number')
-    ) {
-      return record[key] as string | number
+    const value = record[key]
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value
     }
   }
   return null
@@ -150,7 +148,8 @@ function buildTokenClause(field: string, token: string): string {
     return `UPPER(${field}) LIKE '%${variants[0]}%'`
   }
 
-  return `(${variants.map((variant) => `UPPER(${field}) LIKE '%${variant}%'`).join(' OR ')})`
+  const variantClauses = variants.map((variant) => `UPPER(${field}) LIKE '%${variant}%'`)
+  return `(${variantClauses.join(' OR ')})`
 }
 
 function splitAddress(address: string): {
@@ -390,6 +389,24 @@ async function queryArcGisLayerByPoint(endpointUrl: string, point: GeoPoint): Pr
   return getRecords(payload)
 }
 
+async function fetchRecordsFromSearchAddresses(
+  endpointUrl: string,
+  searchAddresses: string[],
+): Promise<LooseObject[]> {
+  for (const searchAddress of searchAddresses) {
+    const whereClauses = buildWhereClauses(searchAddress)
+
+    for (const whereClause of whereClauses) {
+      const records = await queryArcGisLayer(endpointUrl, whereClause)
+      if (records.length > 0) {
+        return records
+      }
+    }
+  }
+
+  return []
+}
+
 function scoreTokenMatch(siteAddress: string, token: string): number {
   const alternates = getTokenAlternates(token)
   return alternates.some((candidate) => siteAddress.includes(candidate)) ? 10 : -6
@@ -420,6 +437,35 @@ function scoreRecord(record: LooseObject, address: string): number {
   }
 
   return score
+}
+
+function chooseBestRecord(records: LooseObject[], preferredAddress: string): LooseObject | null {
+  return (
+    records
+      .map((candidate) => ({ candidate, score: scoreRecord(candidate, preferredAddress) }))
+      .sort((a, b) => b.score - a.score)[0]?.candidate ?? null
+  )
+}
+
+function mapArcGisRecordToResult(record: LooseObject): ParcelLookupResult {
+  const taxableValue = parseNumber(record.TAXABLEVALUE) ?? parseNumber(record.ASSESSEDVALUE)
+  if (taxableValue === null) {
+    throw new Error('Parcel record was found, but taxable value was missing.')
+  }
+
+  const city = typeof record.SITECITY === 'string' ? `, ${record.SITECITY}` : ''
+  const matchedAddress =
+    typeof record.SITEADDRESS === 'string' ? `${record.SITEADDRESS}${city}` : undefined
+
+  const parcelId =
+    (typeof record.PIN === 'string' && record.PIN) ||
+    (typeof record.KEYPIN === 'string' && record.KEYPIN)
+
+  return {
+    taxableValue,
+    parcelId: parcelId || undefined,
+    matchedAddress,
+  }
 }
 
 async function fetchJson(url: URL): Promise<unknown> {
@@ -624,55 +670,19 @@ async function lookupFromArcGisLayerEndpoint(
   const preferredAddress = googleResolution?.formattedAddress ?? address
   const searchAddresses = preferredAddress === address ? [address] : [preferredAddress, address]
 
-  let records: LooseObject[] = []
+  const records = googleResolution?.location
+    ? await queryArcGisLayerByPoint(endpointUrl, googleResolution.location)
+    : await fetchRecordsFromSearchAddresses(endpointUrl, searchAddresses)
 
-  if (googleResolution?.location) {
-    records = await queryArcGisLayerByPoint(endpointUrl, googleResolution.location)
-  }
-
-  if (records.length === 0) {
-    for (const searchAddress of searchAddresses) {
-      const whereClauses = buildWhereClauses(searchAddress)
-
-      for (const whereClause of whereClauses) {
-        records = await queryArcGisLayer(endpointUrl, whereClause)
-        if (records.length > 0) {
-          break
-        }
-      }
-
-      if (records.length > 0) {
-        break
-      }
-    }
-  }
-
-  const record = records
-    .map((candidate) => ({ candidate, score: scoreRecord(candidate, preferredAddress) }))
-    .sort((a, b) => b.score - a.score)[0]?.candidate
+  const resolvedRecords =
+    records.length > 0 ? records : await fetchRecordsFromSearchAddresses(endpointUrl, searchAddresses)
+  const record = chooseBestRecord(resolvedRecords, preferredAddress)
 
   if (!record) {
     throw new Error('No parcel record was returned for that address.')
   }
 
-  const taxableValue = parseNumber(record.TAXABLEVALUE) ?? parseNumber(record.ASSESSEDVALUE)
-  if (taxableValue === null) {
-    throw new Error('Parcel record was found, but taxable value was missing.')
-  }
-
-  const city = typeof record.SITECITY === 'string' ? `, ${record.SITECITY}` : ''
-  const matchedAddress =
-    typeof record.SITEADDRESS === 'string' ? `${record.SITEADDRESS}${city}` : undefined
-
-  const parcelId =
-    (typeof record.PIN === 'string' && record.PIN) ||
-    (typeof record.KEYPIN === 'string' && record.KEYPIN)
-
-  return {
-    taxableValue,
-    parcelId: parcelId || undefined,
-    matchedAddress,
-  }
+  return mapArcGisRecordToResult(record)
 }
 
 export async function suggestPropertyAddresses(addressInput: string): Promise<string[]> {
