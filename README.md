@@ -30,7 +30,10 @@ VITE_OAKLAND_PARCEL_API_URL=https://gisservices.oakgov.com/arcgis/rest/services/
 VITE_GOOGLE_GEOCODING_API_KEY=your_google_api_key_here
 VITE_GOOGLE_GEOCODING_REGION=us
 VITE_USAGE_METRICS_ENDPOINT=
+VITE_ENABLE_MILLAGE_INPUT=false
 ```
+
+Set `VITE_ENABLE_MILLAGE_INPUT=true` only when you want the current/proposed millage fields editable in the UI.
 
 The app queries this ArcGIS layer by `SITEADDRESS` and reads `TAXABLEVALUE` (fallback `ASSESSEDVALUE`).
 If `VITE_GOOGLE_GEOCODING_API_KEY` is set, it first normalizes the entered address through Google Geocoding and attempts a point-based parcel lookup before text fallback.

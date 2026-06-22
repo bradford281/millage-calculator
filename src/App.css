@@ -95,7 +95,7 @@
 .proposal-grid {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   min-width: 0;
 }
@@ -277,27 +277,6 @@ button:disabled {
   align-content: start;
 }
 
-.scenario-buttons {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.scenario-button {
-  border: 1px solid var(--slate-300);
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: #fff;
-  color: var(--ink-900);
-  font-weight: 600;
-  font-size: 0.86rem;
-}
-
-.scenario-button:hover {
-  border-color: var(--hpcan-blue);
-}
-
 .result-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -423,6 +402,12 @@ button:disabled {
   font-size: clamp(1.45rem, 2.5vw, 2rem);
 }
 
+.calculator-results {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--slate-200);
+}
+
 .results-header {
   display: flex;
   align-items: center;
@@ -453,6 +438,11 @@ button:disabled {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.result-actions-bottom {
+  margin-top: 14px;
+  justify-content: flex-end;
 }
 
 .secondary-button {

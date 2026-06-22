@@ -28,7 +28,7 @@ const ANNUAL_COST_PER_100K = 100000 * (DEFAULT_INCREMENTAL_MILLAGE / 1000)
 const PUBLIC_NOTICE_URL =
   'https://www.hazelpark.org/2026-05-05%20PUBLIC%20NOTICE%20-%20Copy.jpg?t=202605051454560'
 const HPCAN_LOGO_URL = 'https://hpcan.org/assets/images/image03.png?v=bbf9bdb8'
-const SCENARIO_TAXABLE_VALUES = [50000, 100000, 150000, 200000]
+const allowMillageInput = import.meta.env.VITE_ENABLE_MILLAGE_INPUT === 'true'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -60,7 +60,7 @@ function toCurrency(value: number): string {
 }
 
 function App() {
-  const resultsRef = useRef<HTMLElement | null>(null)
+  const resultsRef = useRef<HTMLDivElement | null>(null)
   const hasTrackedEstimateUseRef = useRef(false)
 
   const [address, setAddress] = useState('')
@@ -244,11 +244,6 @@ function App() {
     }
   }, [])
 
-  const applyScenario = (value: number) => {
-    setTaxableValueInput(String(value))
-    setShouldFocusResults(true)
-  }
-
   const buildShareUrl = () => {
     const url = new URL(globalThis.location.href)
     url.search = ''
@@ -417,7 +412,7 @@ function App() {
         </p>
       </header>
 
-      <section className="panel">
+      <section className="panel calculator-panel">
         <form
           className="lookup-form"
           onSubmit={(event) => {
@@ -493,6 +488,8 @@ function App() {
               min="0"
               step="0.001"
               value={currentMillageInput}
+              disabled={!allowMillageInput}
+              readOnly={!allowMillageInput}
               onChange={(event) => setCurrentMillageInput(event.target.value)}
             />
           </label>
@@ -505,26 +502,13 @@ function App() {
               min="0"
               step="0.001"
               value={proposedMillageInput}
+              disabled={!allowMillageInput}
+              readOnly={!allowMillageInput}
               onChange={(event) => setProposedMillageInput(event.target.value)}
             />
           </label>
         </div>
-
-        <div className="scenario-buttons" aria-label="Quick taxable value scenarios">
-          {SCENARIO_TAXABLE_VALUES.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className="scenario-button"
-              onClick={() => applyScenario(value)}
-            >
-              {toCurrency(value)} scenario
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel results" ref={resultsRef} tabIndex={-1}>
+        <div className="results calculator-results" ref={resultsRef} tabIndex={-1}>
         <div className="results-header">
           <h2>
             Estimated Cost
@@ -537,24 +521,6 @@ function App() {
               i
             </span>
           </h2>
-          <div className="result-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={handleShareEstimate}
-              disabled={!calculations}
-            >
-              Share Estimate
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={handlePrintEstimate}
-              disabled={!calculations}
-            >
-              Print
-            </button>
-          </div>
         </div>
 
         {calculations ? (
@@ -709,19 +675,39 @@ function App() {
           </ul>
         </details>
 
+        <div className="result-actions result-actions-bottom">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleShareEstimate}
+            disabled={!calculations}
+          >
+            Share Estimate
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handlePrintEstimate}
+            disabled={!calculations}
+          >
+            Print
+          </button>
+        </div>
+
         {shareStatus ? (
           <p className="meta share-status" role="status" aria-live="polite">
             {shareStatus}
           </p>
         ) : null}
+        </div>
       </section>
 
       <section className="panel proposal-details">
         <h2>About The Proposal</h2>
 
         <div className="proposal-grid">
-          <article>
-            <h3>Proposal Snapshot</h3>
+          <article className="proposal-highlight">
+            <h3>Proposal At A Glance</h3>
             <p>
               Current rate: <strong>{DEFAULT_CURRENT_MILLAGE.toFixed(4)} mills</strong>
             </p>
@@ -731,10 +717,6 @@ function App() {
             <p>
               Net change: <strong>{DEFAULT_INCREMENTAL_MILLAGE.toFixed(4)} mills</strong>
             </p>
-          </article>
-
-          <article className="proposal-highlight">
-            <h3>Estimated Cost Impact</h3>
             <p>
               About <strong>{toCurrency(ANNUAL_COST_PER_100K)}</strong> per year for
               every <strong>$100,000</strong> of taxable value.
@@ -743,22 +725,22 @@ function App() {
 
           <article>
             <h3>What This Renewal Supports</h3>
+            <p>
+              The proposal continues core library operations and services while
+              funding ongoing operating costs.
+            </p>
             <ul className="proposal-list">
               <li>
-                Primarily continuation of current library services used by
-                residents on a regular basis.
-              </li>
-              <li>
-                Ongoing operating hours and baseline staffing needed to keep the
-                library open and responsive.
+                Operating hours and baseline staffing needed to keep the library
+                open and responsive.
               </li>
               <li>
                 Existing programming for children, teens, adults, and seniors,
                 including recurring educational and community events.
               </li>
               <li>
-                Continued access to current collections, digital resources,
-                computers, and internet services used by patrons daily.
+                Continued access to collections, digital resources, computers,
+                and internet service.
               </li>
               <li>
                 Routine building operations, maintenance, and service delivery costs
