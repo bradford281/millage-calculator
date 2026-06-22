@@ -57,3 +57,21 @@ variable "force_destroy_bucket" {
   type        = bool
   default     = false
 }
+
+variable "enable_usage_metrics" {
+  description = "Whether to provision the anonymous usage metrics endpoint resources."
+  type        = bool
+  default     = true
+}
+
+variable "usage_metrics_allowed_origins" {
+  description = "CORS allow-list for the usage metrics API."
+  type        = list(string)
+  default     = ["*"]
+}
+
+variable "usage_metrics_log_retention_days" {
+  description = "CloudWatch log retention days for usage metrics Lambda."
+  type        = number
+  default     = 30
+}

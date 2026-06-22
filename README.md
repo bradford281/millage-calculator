@@ -29,6 +29,7 @@ npm install
 VITE_OAKLAND_PARCEL_API_URL=https://gisservices.oakgov.com/arcgis/rest/services/Enterprise/EnterpriseOpenParcelDataMapService/MapServer/1
 VITE_GOOGLE_GEOCODING_API_KEY=your_google_api_key_here
 VITE_GOOGLE_GEOCODING_REGION=us
+VITE_USAGE_METRICS_ENDPOINT=
 ```
 
 The app queries this ArcGIS layer by `SITEADDRESS` and reads `TAXABLEVALUE` (fallback `ASSESSEDVALUE`).
@@ -59,6 +60,63 @@ VITE_GOOGLE_GEOCODING_REGION=us
 7. Restart the dev server after updating `.env`.
 
 Security note: Vite `VITE_` variables are bundled client-side, so keep key restrictions enabled.
+
+### Optional: Anonymous Usage Metrics
+
+If you want simple usage counts without tracking people, set `VITE_USAGE_METRICS_ENDPOINT` to a POST endpoint you control.
+
+The same endpoint also supports `GET` and returns `{ "todayCount": number }`, which the page uses to render an anonymous daily usage count.
+
+The app sends a fire-and-forget event only when an estimate is successfully calculated. Payload fields are limited to:
+
+- `event` (`estimate_calculated`)
+- `at` (ISO timestamp)
+- `hasMatchedAddress` (boolean)
+- `hasParcelId` (boolean)
+
+No name, email, typed address text, or user identifier is sent by this feature.
+
+#### Provision the endpoint with Terraform
+
+From `infra/terraform/terraform.tfvars`, set an origin allow-list that matches your app URLs:
+
+```hcl
+enable_usage_metrics        = true
+usage_metrics_allowed_origins = [
+	"https://d1t4mo5gpo642l.cloudfront.net",
+	"http://localhost:5173"
+]
+```
+
+Then apply Terraform and read the output endpoint:
+
+```bash
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform apply
+terraform -chdir=infra/terraform output -raw usage_metrics_endpoint
+```
+
+Set that output value in your frontend `.env`:
+
+```bash
+VITE_USAGE_METRICS_ENDPOINT=https://your-api-id.execute-api.us-east-1.amazonaws.com/events
+```
+
+If your custom-domain certificate is still pending and full apply fails, you can provision only metrics resources with targets:
+
+```bash
+terraform -chdir=infra/terraform apply \
+	-target=aws_dynamodb_table.usage_metrics \
+	-target=aws_iam_role.usage_metrics_lambda \
+	-target=aws_iam_role_policy.usage_metrics_lambda \
+	-target=aws_cloudwatch_log_group.usage_metrics_lambda \
+	-target=aws_lambda_function.usage_metrics \
+	-target=aws_apigatewayv2_api.usage_metrics \
+	-target=aws_apigatewayv2_integration.usage_metrics \
+	-target=aws_apigatewayv2_route.usage_metrics_events \
+	-target=aws_apigatewayv2_stage.usage_metrics \
+	-target=aws_lambda_permission.usage_metrics_api
+```
 
 3. Start development server:
 

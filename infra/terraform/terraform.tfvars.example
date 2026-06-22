@@ -13,3 +13,8 @@ site_content_path   = "../../dist"
 # tags = {
 #   Owner = "YourName"
 # }
+
+# Optional anonymous usage metrics endpoint
+# enable_usage_metrics = true
+# usage_metrics_allowed_origins = ["https://d1t4mo5gpo642l.cloudfront.net"]
+# usage_metrics_log_retention_days = 30

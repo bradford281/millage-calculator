@@ -10,6 +10,10 @@ import {
   lookupTaxableValueByAddress,
   suggestPropertyAddresses,
 } from './services/oaklandParcel'
+import {
+  fetchEstimateUsageCount,
+  trackEstimateCalculated,
+} from './services/usageMetrics'
 
 type TaxBreakdown = {
   annual: number
@@ -57,6 +61,7 @@ function toCurrency(value: number): string {
 
 function App() {
   const resultsRef = useRef<HTMLElement | null>(null)
+  const hasTrackedEstimateUseRef = useRef(false)
 
   const [address, setAddress] = useState('')
   const [taxableValueInput, setTaxableValueInput] = useState('')
@@ -75,6 +80,7 @@ function App() {
   const [lastLookupAt, setLastLookupAt] = useState('')
   const [shareStatus, setShareStatus] = useState('')
   const [shouldFocusResults, setShouldFocusResults] = useState(false)
+  const [todayUsageCount, setTodayUsageCount] = useState<number | null>(null)
 
   const taxableValue = parsePositiveNumber(taxableValueInput)
   const currentMillage = parsePositiveNumber(currentMillageInput)
@@ -203,6 +209,40 @@ function App() {
       setShouldFocusResults(false)
     }
   }, [shouldFocusResults, calculations])
+
+  useEffect(() => {
+    if (!calculations) {
+      hasTrackedEstimateUseRef.current = false
+      return
+    }
+
+    if (hasTrackedEstimateUseRef.current) {
+      return
+    }
+
+    trackEstimateCalculated({
+      hasMatchedAddress: Boolean(matchedAddress),
+      hasParcelId: Boolean(parcelId),
+    })
+    hasTrackedEstimateUseRef.current = true
+  }, [calculations, matchedAddress, parcelId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadUsageCount = async () => {
+      const count = await fetchEstimateUsageCount()
+      if (!cancelled) {
+        setTodayUsageCount(count)
+      }
+    }
+
+    void loadUsageCount()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const applyScenario = (value: number) => {
     setTaxableValueInput(String(value))
@@ -705,8 +745,8 @@ function App() {
             <h3>What This Renewal Supports</h3>
             <ul className="proposal-list">
               <li>
-                Primarily continuation of current library services residents rely
-                on every week.
+                Primarily continuation of current library services used by
+                residents on a regular basis.
               </li>
               <li>
                 Ongoing operating hours and baseline staffing needed to keep the
@@ -791,6 +831,30 @@ function App() {
         <p className="small-note">
           Meeting schedules can change. Verify the latest details on official
           pages before attending.
+        </p>
+      </section>
+
+      <section className="panel usage-metrics">
+        {todayUsageCount !== null ? (
+          <h3 className="meta usage-count-meta" role="status" aria-live="polite">
+            Estimates calculated today: <strong>{todayUsageCount}</strong>.
+          </h3>
+        ) : (
+          <h3 className="meta usage-count-meta" role="status" aria-live="polite">
+            Usage count unavailable right now.
+          </h3>
+        )}
+        <p>
+          If you find this information useful, please consider
+          {' '}
+          <a href="https://hpcan.org/donate" target="_blank" rel="noreferrer">
+            donating to support HPCAN
+          </a>
+          .
+        </p>
+        <p className="small-note">
+          Usage metrics are anonymous and reported only as aggregate counts. No
+          personal identifiers are collected.
         </p>
       </section>
     </main>
